@@ -84,14 +84,6 @@ void Printer::VisitMath(NMath &math) {
   os << ")"
      << " End Of Math";
 }
-void Printer::VisitCallArgs(NCallArgs &args) {
-  os << "Visit Call Arguments: ( ";
-  for (Node *args : args.call_args) {
-    args->accept(*this);
-    os << " ";
-  }
-  os << ")";
-}
 void Printer::VisitReturn(NReturn &ret) {
   os << "Visit Return Statement\n";
   if (ret.ret != nullptr) {

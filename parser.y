@@ -5,7 +5,6 @@
 }
 
 %{
-
 #include "node.h"
 #include "extra.h"
 NBlock *programBlock;
@@ -24,7 +23,6 @@ void yyerror(const char *message);
   Node *node;
   NBlock *block;
   NIdentifier *ident;
-  NCallArgs *call_args;
   NArray *array;
   std::string *string;
   int token;
@@ -45,7 +43,6 @@ void yyerror(const char *message);
 %start program
 
 %type <block> program stmts
-%type <call_args> call_args
 %type <array> array
 
 %type <node> ident assignment
@@ -82,7 +79,7 @@ ifstmt : IF L_PARENTHESIS cond R_PARENTHESIS stmt { $$ = new NIf(*$3, *$5); }
 loop  : WHILE L_PARENTHESIS cond R_PARENTHESIS L_BRACE stmts R_BRACE { $$ = new NLoop(*$3, *$6); }
       ;
 
-methodcall : ident call_args { $$ = new NMethodCall(*$1, *$2);  }
+methodcall : ident factor { $$ = new NMethodCall(*$1, *$2);  }
             ;
 
 return : RETURN factor{ $$ = new NReturn($2); }
@@ -117,12 +114,8 @@ math: factor ADD factor { $$ = new NMath(*$1, *$3, "+"); }
     | factor SUB factor { $$ = new NMath(*$1, *$3, "-"); }
     | factor MUL factor { $$ = new NMath(*$1, *$3, "*"); }
     | factor DIV factor { $$ = new NMath(*$1, *$3, "/"); }
+    | L_PARENTHESIS factor R_PARENTHESIS {$$ = $2;};
     ;
-
-call_args : /*blank*/  { $$ = new NCallArgs(); }
-          | factor { $$ = new NCallArgs(); $$->call_args.push_back($1);  }
-          | call_args COMMA factor  { $1->call_args.push_back($3); }
-          ;
 
 arrid : ident L_BRACKETS index R_BRACKETS { $$ = new NArrid(*$1, *$3); };
 

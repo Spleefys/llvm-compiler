@@ -1,6 +1,6 @@
 #include <stdio.h>
 
-int outputStr(const char *str) {
+int echo(const char *str) {
   printf("%s\n", str);
   return 0;
 }
@@ -10,7 +10,7 @@ int print(const int number) {
   return 0;
 }
 
-int outputChar(const char ch) {
+int echoc(const char ch) {
   printf("%c\n", ch);
   return 0;
 }

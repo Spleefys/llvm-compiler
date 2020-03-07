@@ -37,7 +37,7 @@ class NString : public Node {
  public:
   std::string value;
   NString(std::string value) : value(value) {}
-  void accept(Visitor &visitor) override { visitor.VisitString(*this); }
+  void accept(Visitor &v) override { v.VisitString(*this); }
   virtual llvm::Value *codeGen(CodeGenContext &context);
 };
 
@@ -45,8 +45,12 @@ class NArray : public Node {
  public:
   NodeList data;
   NArray() {}
-  void accept(Visitor &visitor) override { visitor.VisitArray(*this); }
-  // virtual llvm::Value *codeGen(CodeGenContext &context);
+  void accept(Visitor &v) override { v.VisitArray(*this); }
+  virtual llvm::Value *codeGen(CodeGenContext &context);
+  llvm::Value *getElementPtrInst(CodeGenContext &context,
+                                 const std::string &identifier, int i);
+  llvm::Value *store(Node *rhs, const std::string &identifier,
+                     CodeGenContext &context);
 };
 
 class NArrid : public Node {
@@ -54,8 +58,10 @@ class NArrid : public Node {
   Node &id;
   Node &idx;
   NArrid(Node &id, Node &idx) : id(id), idx(idx) {}
-  void accept(Visitor &visitor) override { visitor.VisitArrid(*this); }
-  // virtual llvm::Value *codeGen(CodeGenContext &context);
+  void accept(Visitor &v) override { v.VisitArrid(*this); }
+  virtual llvm::Value *codeGen(CodeGenContext &context);
+  llvm::Value *getElementPtrInst(CodeGenContext &context,
+                                 const std::string &identifier);
 };
 
 class NMethodCall : public Node {
@@ -126,14 +132,6 @@ class NCond : public Node {
       : lhs(lhs), rhs(rhs), op(op) {}
 
   void accept(Visitor &v) override { v.VisitCond(*this); }
-  virtual llvm::Value *codeGen(CodeGenContext &context);
-};
-
-class NCallArgs : public Node {
- public:
-  NodeList call_args;
-  NCallArgs() {}
-  void accept(Visitor &v) override { v.VisitCallArgs(*this); }
   virtual llvm::Value *codeGen(CodeGenContext &context);
 };
 

@@ -17,7 +17,6 @@ class NIf;
 class NLoop;
 class NCond;
 class NMath;
-class NCallArgs;
 class NReturn;
 
 class Visitor {
@@ -35,7 +34,6 @@ class Visitor {
   virtual void VisitLoop(NLoop &loop) = 0;
   virtual void VisitCond(NCond &cond) = 0;
   virtual void VisitMath(NMath &math) = 0;
-  virtual void VisitCallArgs(NCallArgs &args) = 0;
   virtual void VisitReturn(NReturn &ret) = 0;
 };
 

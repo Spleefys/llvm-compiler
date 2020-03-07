@@ -22,7 +22,6 @@ class Printer : Visitor {
   void VisitLoop(NLoop &loop);
   void VisitCond(NCond &cond);
   void VisitMath(NMath &math);
-  void VisitCallArgs(NCallArgs &args);
   void VisitReturn(NReturn &ret);
 };
 

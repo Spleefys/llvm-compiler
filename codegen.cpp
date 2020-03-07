@@ -1,16 +1,67 @@
 #include "codegen.h"
 #include "node.h"
 
-static Type* typeOf(CodeGenContext& context, const NIdentifier& type) {
-  return Type::getInt32Ty(context.getContext());
-}
-
 Value* NInteger::codeGen(CodeGenContext& context) {
   return ConstantInt::get(Type::getInt32Ty(context.getContext()), value, true);
 }
 
 Value* NString::codeGen(CodeGenContext& context) {
-  return ConstantInt::get(Type::getInt8Ty(context.getContext()), value, true);
+  return ConstantInt::get(Type::getInt8Ty(context.getContext()), value[1],
+                          true);
+}
+
+Value* NArray::codeGen(CodeGenContext& context) {}
+
+Value* NArray::getElementPtrInst(CodeGenContext& context,
+                                 const std::string& identifier, int i) {
+  std::vector<llvm::Value*> vect;
+
+  vect.push_back(ConstantInt::get(Type::getInt32Ty(context.getContext()), 0));
+  vect.push_back(ConstantInt::get(Type::getInt32Ty(context.getContext()), i));
+
+  GetElementPtrInst* elemPtr = GetElementPtrInst::CreateInBounds(
+      context.locals()[identifier], vect, "", context.currentBlock());
+
+  return elemPtr;
+}
+
+Value* NArray::store(Node* rhs, const std::string& identifier,
+                     CodeGenContext& context) {
+  NArray* vec = dynamic_cast<NArray*>(rhs);
+
+  StoreInst* st;
+  int i = 0;
+  for (Node* a : vec->data) {
+    st = new StoreInst(a->codeGen(context),
+                       getElementPtrInst(context, identifier, i), false,
+                       context.currentBlock());
+    st->setAlignment(4);
+    i++;
+  }
+
+  return st;
+}
+
+Value* NArrid::codeGen(CodeGenContext& context) {
+  NIdentifier* identifier = dynamic_cast<NIdentifier*>(&id);
+  LoadInst* ld = new LoadInst(getElementPtrInst(context, identifier->name), "",
+                              false, context.currentBlock());
+  ld->setAlignment(4);
+
+  return ld;
+}
+
+Value* NArrid::getElementPtrInst(CodeGenContext& context,
+                                 const std::string& identifier) {
+  std::vector<llvm::Value*> vect;
+
+  vect.push_back(ConstantInt::get(Type::getInt32Ty(context.getContext()), 0));
+  vect.push_back(idx.codeGen(context));
+
+  GetElementPtrInst* elemPtr = GetElementPtrInst::CreateInBounds(
+      context.locals()[identifier], vect, "", context.currentBlock());
+
+  return elemPtr;
 }
 
 Value* NIdentifier::codeGen(CodeGenContext& context) {
@@ -29,14 +80,7 @@ Value* NIdentifier::codeGen(CodeGenContext& context) {
 Value* NIdentifier::store(Node* rhs, CodeGenContext& context) {
   StoreInst* st = new StoreInst(rhs->codeGen(context), context.locals()[name],
                                 false, context.currentBlock());
-
-#if 0
-    // normal alignment in the future (no)
-    // context.locals()[lhs->getName()];
-#else
   st->setAlignment(4);
-#endif
-
   return st;
 }
 
@@ -44,22 +88,59 @@ Value* NAssignment::codeGen(CodeGenContext& context) {
   NIdentifier* lvalue = dynamic_cast<NIdentifier*>(&lhs);
 
   if (context.locals().find(lvalue->name) == context.locals().end()) {
-    AllocaInst* alloc =
-        new AllocaInst(typeOf(context, *lvalue), 0, lvalue->name.c_str(),
-                       context.currentBlock());
-#if 0
-    // normal alignment in the future (no)
-    if (this->type->getName() == "int")
-      alloc->setAlignment(4);
-    else if (this->type->getName() == "char") {
-      alloc->setAlignment(1);
-    }
-#else
-    alloc->setAlignment(4);
-#endif
-    context.locals()[lvalue->name] = alloc;
-  }
+    std::string typee = typeid(rhs).name();
+    typee = typee.substr(typee.find('N') + 1);
+    AllocaInst* alloc;
 
+    if (strcmp(typee.c_str(), "Integer") == 0 ||
+        strcmp(typee.c_str(), "Arrid") == 0 ||
+        strcmp(typee.c_str(), "Math") == 0) {
+      alloc = new AllocaInst(Type::getInt32Ty(context.getContext()), 0,
+                             lvalue->name.c_str(), context.currentBlock());
+
+      alloc->setAlignment(4);
+      context.locals()[lvalue->name] = alloc;
+      context.locals_type()[lvalue->name] = "Integer";
+
+    } else if (strcmp(typee.c_str(), "String") == 0) {
+      alloc = new AllocaInst(IntegerType::get(context.getContext(), 8), 0,
+                             lvalue->name.c_str(), context.currentBlock());
+      context.locals()[lvalue->name] = alloc;
+      context.locals_type()[lvalue->name] = "String";
+
+    } else if (strcmp(typee.c_str(), "Identifier") == 0) {
+      NIdentifier* rvalue = dynamic_cast<NIdentifier*>(&rhs);
+      AllocaInst* alloc;
+      std::string ty = context.locals_type()[rvalue->name];
+
+      if (strcmp(ty.c_str(), "Integer") == 0) {
+        alloc = new AllocaInst(Type::getInt32Ty(context.getContext()), 0,
+                               lvalue->name.c_str(), context.currentBlock());
+        alloc->setAlignment(4);
+
+      } else if (strcmp(ty.c_str(), "String") == 0) {
+        alloc = new AllocaInst(IntegerType::get(context.getContext(), 8), 0,
+                               lvalue->name.c_str(), context.currentBlock());
+      }
+      context.locals()[lvalue->name] = alloc;
+      context.locals_type()[lvalue->name] = ty;
+    } else if (strcmp(typee.c_str(), "Array") == 0) {
+      NArray* vec = dynamic_cast<NArray*>(&rhs);
+
+      ArrayType* arrayType = ArrayType::get(
+          Type::getInt32Ty(context.getContext()), vec->data.size());
+
+      alloc = new AllocaInst(arrayType, 0, (lvalue->name + ".addr").c_str(),
+                             context.currentBlock());
+
+      context.locals()[lvalue->name] = alloc;
+      context.locals_type()[lvalue->name] = "AInteger";
+
+      alloc->setAlignment(4);
+
+      return vec->store(&rhs, lvalue->name, context);
+    }
+  }
   return lvalue->store(&rhs, context);
 }
 
@@ -152,15 +233,10 @@ Value* NCond::codeGen(CodeGenContext& context) {
 }
 
 Value* NBlock::codeGen(CodeGenContext& context) {
-  // NodeList::const_iterator it;
   Value* last = NULL;
-  // for (it = statements.begin(); it != statements.end(); it++) {
-  //   last = (**it).codeGen(context);
-  // }
   for (Node* a : statements) {
     last = a->codeGen(context);
   }
-
   return last;
 }
 
@@ -220,35 +296,55 @@ Value* NLoop::codeGen(CodeGenContext& context) {
   context.setLocals(currLocals);  // с которым мы залетели в функцию
 }
 
-Value* NCallArgs::codeGen(CodeGenContext& context) {
-  // NodeList::const_iterator it;
-  Value* last = NULL;
-  // for (it = statements.begin(); it != statements.end(); it++) {
-  //   last = (**it).codeGen(context);
-  // }
-  for (Node* a : call_args) {
-    last = a->codeGen(context);
-  }
-
-  return last;
-}
-
 Value* NMethodCall::codeGen(CodeGenContext& context) {
-  IRBuilder<> builder(context.currentBlock());
+  NIdentifier* ident = dynamic_cast<NIdentifier*>(&id);
+  std::string meth_name = ident->name;
+  if (strcmp(meth_name.c_str(), "print") == 0) {
+    IRBuilder<> builder(context.currentBlock());
 
-  Value* outInt = arguments.codeGen(context);
+    Value* outInt = arguments.codeGen(context);
 
-  std::vector<Type*> putsArgs;
-  putsArgs.push_back(builder.getInt32Ty());
+    std::vector<Type*> putsArgs;
+    putsArgs.push_back(builder.getInt32Ty());
 
-  ArrayRef<Type*> argsRef(putsArgs);
+    ArrayRef<Type*> argsRef(putsArgs);
 
-  FunctionType* putsType =
-      FunctionType::get(builder.getInt32Ty(), argsRef, false);
-  Constant* putsFunc =
-      context.getModule()->getOrInsertFunction("print", putsType);
+    FunctionType* putsType =
+        FunctionType::get(builder.getInt32Ty(), argsRef, false);
+    Constant* putsFunc =
+        context.getModule()->getOrInsertFunction("print", putsType);
 
-  builder.CreateCall(putsFunc, outInt);
+    builder.CreateCall(putsFunc, outInt);
+  } else if (strcmp(meth_name.c_str(), "echoc") == 0) {
+    IRBuilder<> builder(context.currentBlock());
+
+    Value* outInt = arguments.codeGen(context);
+
+    std::vector<Type*> putsArgs;
+    putsArgs.push_back(builder.getInt8Ty());
+
+    ArrayRef<Type*> argsRef(putsArgs);
+
+    FunctionType* putsType =
+        FunctionType::get(builder.getInt32Ty(), argsRef, false);
+    Constant* putsFunc =
+        context.getModule()->getOrInsertFunction("echoc", putsType);
+
+    builder.CreateCall(putsFunc, outInt);
+
+  } else if (strcmp(meth_name.c_str(), "echo") == 0) {
+    NString* message = dynamic_cast<NString*>(&arguments);
+    IRBuilder<> builder(context.currentBlock());
+    Value* outString = builder.CreateGlobalStringPtr(message->value);
+    std::vector<Type*> putsArgs;
+    putsArgs.push_back(builder.getInt8Ty()->getPointerTo());
+    ArrayRef<Type*> argsRef(putsArgs);
+    FunctionType* putsType =
+        FunctionType::get(builder.getInt32Ty(), argsRef, false);
+    Constant* putsFunc =
+        context.getModule()->getOrInsertFunction("echo", putsType);
+    builder.CreateCall(putsFunc, outString);
+  }
 }
 
 Value* NReturn::codeGen(CodeGenContext& context) {
